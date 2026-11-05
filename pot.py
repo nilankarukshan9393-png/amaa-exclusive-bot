@@ -1,6 +1,6 @@
 
-
 import os
+import time
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
@@ -11,17 +11,17 @@ if not TOKEN:
 
 bot = telebot.TeleBot(TOKEN)
 
-CHANNEL_USERNAME = "@AmaaExclusive"
-CHANNEL_LINK = "https://t.me/AmaaExclusive"
+# මුලින් Public Channel එක තිබියදී ID එක ලබාගන්න
+CHANNEL_ID = "@AmaaExclusive"
 
 SHARE_LINK = (
     "https://t.me/share/url"
     "?url=https%3A%2F%2Ft.me%2FAmaaExclusive"
-    "&text=Amaa%20Exclusive%20Channel"
+    "&text=Join%20Amaa%20Exclusive"
 )
 
 
-def main_keyboard():
+def start_keyboard():
     markup = InlineKeyboardMarkup()
 
     markup.add(
@@ -33,8 +33,21 @@ def main_keyboard():
 
     markup.add(
         InlineKeyboardButton(
-            "📢 Join Channel",
-            url=CHANNEL_LINK
+            "✅ I Shared",
+            callback_data="shared"
+        )
+    )
+
+    return markup
+
+
+def join_keyboard(link):
+    markup = InlineKeyboardMarkup()
+
+    markup.add(
+        InlineKeyboardButton(
+            "🔓 Join Amaa Exclusive",
+            url=link
         )
     )
 
@@ -48,6 +61,21 @@ def main_keyboard():
     return markup
 
 
+@bot.message_handler(commands=["getid"])
+def get_channel_id(message):
+    try:
+        chat = bot.get_chat("@AmaaExclusive")
+        bot.send_message(
+            message.chat.id,
+            f"Channel ID: {chat.id}"
+        )
+    except Exception as e:
+        bot.send_message(
+            message.chat.id,
+            f"Error: {e}"
+        )
+
+
 @bot.message_handler(commands=["start"])
 def start(message):
 
@@ -57,17 +85,49 @@ def start(message):
         "📢 පියවර 01:\n"
         "අපගේ Channel Link එක Groups 3කට Share කරන්න.\n\n"
         "🔓 පියවර 02:\n"
-        "පහත Button එක ඔබලා Channel එකට Join වෙන්න.\n\n"
-        "✅ පියවර 03:\n"
-        "Join වූ පසු I Joined Button එක ඔබන්න.\n\n"
+        "Share කළ පසු I Shared Button එක ඔබන්න.\n\n"
         "❤️ Amaa Exclusive සමඟ එකතු වෙන්න!"
     )
 
     bot.send_message(
         message.chat.id,
         text,
-        reply_markup=main_keyboard()
+        reply_markup=start_keyboard()
     )
+
+
+@bot.callback_query_handler(
+    func=lambda call: call.data == "shared"
+)
+def shared(call):
+
+    try:
+        invite = bot.create_chat_invite_link(
+            chat_id=CHANNEL_ID,
+            member_limit=1,
+            expire_date=int(time.time()) + 600
+        )
+
+        bot.answer_callback_query(
+            call.id,
+            "Invite Link Ready!"
+        )
+
+        bot.send_message(
+            call.message.chat.id,
+            "🎉 Unlock Link එක සූදානම්!\n\n"
+            "පහත Button එකෙන් Channel එකට Join වෙන්න.",
+            reply_markup=join_keyboard(invite.invite_link)
+        )
+
+    except Exception as e:
+        print("Invite Error:", e)
+
+        bot.answer_callback_query(
+            call.id,
+            "⚠️ Invite Link එක ලබාගන්න බැහැ.",
+            show_alert=True
+        )
 
 
 @bot.callback_query_handler(
@@ -75,30 +135,31 @@ def start(message):
 )
 def check_join(call):
 
-    user_id = call.from_user.id
-
     try:
         member = bot.get_chat_member(
-            CHANNEL_USERNAME,
-            user_id
+            CHANNEL_ID,
+            call.from_user.id
         )
 
-        if member.status in [
-            "member",
-            "administrator",
-            "creator"
-        ]:
+        joined = (
+            member.status in ["member", "administrator", "creator"]
+            or (
+                member.status == "restricted"
+                and getattr(member, "is_member", False)
+            )
+        )
+
+        if joined:
 
             bot.answer_callback_query(
                 call.id,
-                "✅ Join Verified!"
+                "✅ Verification Successful!"
             )
 
             bot.send_message(
                 call.message.chat.id,
-                "🎉 Verification Successful!\n\n"
-                "❤️ ඔයා Amaa Exclusive Member කෙනෙක්.\n\n"
-                "🔓 Access Granted!"
+                "🎉 ACCESS GRANTED!\n\n"
+                "❤️ ඔයා දැන් Amaa Exclusive Member කෙනෙක්."
             )
 
         else:
@@ -109,9 +170,8 @@ def check_join(call):
                 show_alert=True
             )
 
-    except Exception as error:
-
-        print("Verification Error:", error)
+    except Exception as e:
+        print("Verification Error:", e)
 
         bot.answer_callback_query(
             call.id,
@@ -123,3 +183,5 @@ def check_join(call):
 print("Amaa Exclusive Bot is running...")
 
 bot.infinity_polling(skip_pending=True)
+
+
